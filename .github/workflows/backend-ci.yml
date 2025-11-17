@@ -17,13 +17,11 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci
-        working-directory: backend
       - name: Run unit tests
         run: npm run test --if-present -- --passWithNoTests
-        working-directory: backend
 
   develop-build:
     if: github.ref == 'refs/heads/develop'
@@ -34,16 +32,22 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci
-        working-directory: backend
       - name: Run unit tests
         run: npm run test --if-present -- --passWithNoTests
-        working-directory: backend
       - name: Build backend
         run: npm run build
-        working-directory: backend
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to docker hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Build Docker image
+        run: docker buildx build --push --load -t fredericpinaud/babytrackerbackend:develop -f Dockerfile.dev .
 
   main-release:
     if: github.ref == 'refs/heads/main'
@@ -63,5 +67,10 @@ jobs:
         run: npm run build
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - name: Login to docker hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Build Docker image
-        run: docker buildx build --load -t evendol-backend:ci -f Dockerfile.prod .
+        run: docker buildx build --push --load -t fredericpinaud/babytrackerbackend:prod -f Dockerfile.prod .
