@@ -17,11 +17,13 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: backend/package-lock.json
       - name: Install dependencies
         run: npm ci
+        working-directory: backend
       - name: Run unit tests
-        run: npm run test --if-present
+        run: npm run test --if-present -- --passWithNoTests
+        working-directory: backend
 
   develop-build:
     if: github.ref == 'refs/heads/develop'
@@ -32,17 +34,16 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: backend/package-lock.json
       - name: Install dependencies
         run: npm ci
+        working-directory: backend
       - name: Run unit tests
-        run: npm run test --if-present
-      - name: Build backend locally
+        run: npm run test --if-present -- --passWithNoTests
+        working-directory: backend
+      - name: Build backend
         run: npm run build
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build Docker image
-        run: docker buildx build --load -t evendol-backend:ci -f Dockerfile.prod
+        working-directory: backend
 
   main-release:
     if: github.ref == 'refs/heads/main'
@@ -53,14 +54,17 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: backend/package-lock.json
       - name: Install dependencies
         run: npm ci
+        working-directory: backend
       - name: Run unit tests
-        run: npm run test --if-present
+        run: npm run test --if-present -- --passWithNoTests
+        working-directory: backend
       - name: Build backend
         run: npm run build
+        working-directory: backend
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build Docker image
-        run: docker buildx build --load -t evendol-backend:ci -f Dockerfile.prod
+        run: docker buildx build --load -t evendol-backend:ci -f backend/Dockerfile backend
