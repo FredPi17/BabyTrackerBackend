@@ -1,0 +1,58 @@
+# ---------- 1) Base commune ----------
+FROM node:20-alpine AS base
+WORKDIR /app
+# Optionnel: accélère les installs npm en CI
+ENV npm_config_loglevel=warn
+
+# ---------- 2) Dépendances + build ----------
+FROM base AS build
+# Si vous utilisez Prisma/Sharp/bcrypt, ces libs aident sur Alpine.
+# Décommentez si besoin :
+# RUN apk add --no-cache libc6-compat openssl
+
+# Copie des manifests en premier pour profiter du cache Docker
+COPY package*.json ./
+
+# Installe TOUTES les deps (prod + dev) pour pouvoir builder
+RUN npm ci
+
+# Copie du code source et build
+COPY . .
+# Si votre script est "build": "nest build" (par défaut)
+RUN npm run build
+
+# Purge des devDeps pour l'image finale
+RUN npm prune --omit=dev
+
+# ---------- 3) Image finale (runtime) ----------
+FROM base AS runtime
+ENV NODE_ENV=production \
+    PORT=3000
+
+# (Optionnel) Si vous avez besoin de "curl" pour le healthcheck
+RUN apk add --no-cache curl
+
+# Crée un user non-root (l'image node possède déjà "node")
+USER node
+
+# Copie seulement le nécessaire depuis l’étape build
+COPY --chown=node:node --from=build /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/package*.json ./
+COPY --chown=node:node --from=build /app/dist ./dist
+
+# build Nest + prune dev
+RUN npm run build && npm prune --omit=dev
+
+FROM node:18-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package.json ./package.json
+EXPOSE 3000
+
+# Healthcheck basique sur / (adaptez le path)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:${PORT}/ || exit 1
+
+CMD ["node", "dist/main.js"]
